@@ -11,9 +11,6 @@ export default function HostDashboard() {
         Host Dashboard
       </h1>
 
-      <p className="mt-4">
-        Welcome {user?.name}
-      </p>
     </div>
   );
 }

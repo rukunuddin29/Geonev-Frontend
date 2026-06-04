@@ -1,8 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+
+import {
+  useState,
+  useMemo,
+} from "react";
+
+import {
+  usePathname,
+  useRouter,
+} from "next/navigation";
 
 import {
   Zap,
@@ -12,15 +20,21 @@ import {
   LogOut,
   LayoutDashboard,
   ChevronDown,
+  Plus,
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
 
 export default function Navbar() {
   const pathname = usePathname();
+
   const router = useRouter();
 
-  const { user, logout } = useAuth();
+  const {
+    user,
+    logout,
+    loading,
+  } = useAuth();
 
   const [mobileOpen, setMobileOpen] =
     useState(false);
@@ -28,43 +42,78 @@ export default function Navbar() {
   const [dropdownOpen, setDropdownOpen] =
     useState(false);
 
-  const navLinks = [
-    {
-      name: "Stations",
-      href: "/stations",
-    },
-    {
-      name: "How it works",
-      href: "/how-it-works",
-    },
-    {
-      name: "Become Host",
-      href: "/become-host",
-    },
-    {
-      name: "About",
-      href: "/about",
-    },
-  ];
+  // Role
+  const isOwner =
+    user?.role === "OWNER";
 
-  const handleLogout = () => {
-    logout();
+  // Avatar initials
+  const initials =
+    user?.email
+      ?.charAt(0)
+      .toUpperCase() || "U";
+
+  // Display name
+  const displayName =
+    user?.email?.split("@")[0] ||
+    "User";
+
+  // Navigation links
+  const navLinks = useMemo(
+    () => [
+      {
+        name: "Stations",
+        href: "/stations",
+      },
+
+      {
+        name: "How it works",
+        href: "/how-it-works",
+      },
+
+      isOwner
+        ? {
+            name: "Add Station",
+            href: "/owner/create-listing",
+          }
+        : {
+            name: "Become Host",
+            href: "/become-host",
+          },
+
+      {
+        name: "About",
+        href: "/about",
+      },
+    ],
+    [isOwner],
+  );
+
+  // Dashboard route
+  const dashboardHref = isOwner
+    ? "/owner/dashboard"
+    : "/user/dashboard";
+
+  // Profile route
+  const profileHref = isOwner
+    ? "/owner/profile"
+    : "/user/profile";
+
+  // Logout
+  const handleLogout = async () => {
+    await logout();
 
     setDropdownOpen(false);
 
     router.push("/");
   };
 
-  const dashboardHref =
-    user?.role === "host"
-      ? "/host/dashboard"
-      : "/user/dashboard";
+  // IMPORTANT:
+  // Loading check MUST come after hooks
+  if (loading) return null;
 
   return (
     <header className="fixed left-0 top-4 z-50 w-full">
-      
       <div className="mx-auto flex w-[92%] max-w-6xl items-center justify-between rounded-full border border-white/30 bg-white/60 px-6 py-3 shadow-[0_8px_32px_rgba(31,38,135,0.15)] backdrop-blur-2xl">
-        
         {/* Logo */}
         <Link
           href="/"
@@ -87,30 +136,39 @@ export default function Navbar() {
 
         {/* Desktop Navigation */}
         <div className="hidden items-center gap-2 md:flex">
-          
           {navLinks.map((link) => {
             const active =
               pathname === link.href;
+
+            const isAddStation =
+              link.name ===
+              "Add Station";
 
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ${
+                className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ${
                   active
                     ? "bg-white/80 text-[#0066FF] shadow-sm"
+                    : isAddStation
+                    ? "bg-[#0066FF]/10 text-[#0066FF] hover:bg-[#0066FF]/20"
                     : "text-gray-700 hover:bg-white/60 hover:text-gray-900"
                 }`}
               >
+                {isAddStation && (
+                  <Plus className="h-4 w-4" />
+                )}
+
                 {link.name}
               </Link>
             );
           })}
         </div>
 
-        {/* Auth Area */}
+        {/* Right Side */}
         <div className="hidden items-center gap-3 md:flex">
-          
+          {/* Not logged in */}
           {!user ? (
             <>
               <Link
@@ -128,46 +186,71 @@ export default function Navbar() {
               </Link>
             </>
           ) : (
+            // Logged in
             <div className="relative">
-              
               <button
                 onClick={() =>
                   setDropdownOpen(
-                    !dropdownOpen
+                    !dropdownOpen,
                   )
                 }
-                className="flex items-center gap-3 rounded-full border border-white/30 bg-white/50 px-3 py-2 backdrop-blur-xl transition-all hover:bg-white/70"
+                className="flex items-center gap-3 rounded-full border border-white/40 bg-white/60 px-2 py-1.5 backdrop-blur-xl transition-all hover:bg-white/80 hover:shadow-sm"
               >
-                
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0066FF] text-sm font-semibold text-white">
-                  {user.name.charAt(0)}
+                {/* Avatar */}
+                <div className="relative">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#0066FF] to-[#0052CC] text-sm font-semibold text-white shadow-inner">
+                    {initials}
+                  </div>
+
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full border-2 border-white bg-emerald-500">
+                    <span className="absolute h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  </span>
                 </div>
 
-                <div className="flex flex-col items-start">
-                  <span className="text-sm font-medium text-gray-900">
-                    {user.name}
+                <div className="hidden flex-col items-start pr-1 lg:flex">
+                  <span className="text-sm font-medium leading-tight text-gray-900">
+                    {displayName}
                   </span>
 
-                  <span className="text-xs capitalize text-gray-500">
+                  <span className="flex items-center gap-1 text-[11px] font-medium leading-tight text-gray-500">
+                    <span
+                      className={`inline-block h-1.5 w-1.5 rounded-full ${
+                        isOwner
+                          ? "bg-amber-500"
+                          : "bg-blue-500"
+                      }`}
+                    />
+
                     {user.role}
                   </span>
                 </div>
 
-                <ChevronDown className="h-4 w-4 text-gray-500" />
+                <ChevronDown
+                  className={`h-4 w-4 text-gray-500 transition-transform ${
+                    dropdownOpen
+                      ? "rotate-180"
+                      : ""
+                  }`}
+                />
               </button>
 
               {/* Dropdown */}
               {dropdownOpen && (
-                <div className="absolute right-0 mt-3 w-60 overflow-hidden rounded-3xl border border-white/30 bg-white/80 shadow-2xl backdrop-blur-2xl">
-                  
-                  <div className="border-b border-gray-100 px-4 py-4">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {user.name}
-                    </p>
+                <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-3xl border border-white/30 bg-white/85 shadow-2xl backdrop-blur-2xl">
+                  <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-4">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-[#0066FF] to-[#0052CC] text-base font-semibold text-white">
+                      {initials}
+                    </div>
 
-                    <p className="truncate text-xs text-gray-500">
-                      {user.email}
-                    </p>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-gray-900">
+                        {displayName}
+                      </p>
+
+                      <p className="truncate text-xs text-gray-500">
+                        {user.email}
+                      </p>
+                    </div>
                   </div>
 
                   <Link
@@ -178,21 +261,35 @@ export default function Navbar() {
                     className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 transition-colors hover:bg-white/60"
                   >
                     <LayoutDashboard className="h-4 w-4" />
+
                     Dashboard
                   </Link>
 
+                  {isOwner && (
+                    <Link
+                      href="/owner/create-listing"
+                      onClick={() =>
+                        setDropdownOpen(
+                          false,
+                        )
+                      }
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 transition-colors hover:bg-white/60"
+                    >
+                      <Plus className="h-4 w-4" />
+
+                      Add Station
+                    </Link>
+                  )}
+
                   <Link
-                    href={
-                      user.role === "host"
-                        ? "/host/profile"
-                        : "/user/profile"
-                    }
+                    href={profileHref}
                     onClick={() =>
                       setDropdownOpen(false)
                     }
                     className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 transition-colors hover:bg-white/60"
                   >
                     <User className="h-4 w-4" />
+
                     Profile
                   </Link>
 
@@ -201,9 +298,9 @@ export default function Navbar() {
                     className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-700 transition-colors hover:bg-red-50 hover:text-red-500"
                   >
                     <LogOut className="h-4 w-4" />
+
                     Sign out
                   </button>
-
                 </div>
               )}
             </div>
@@ -211,91 +308,31 @@ export default function Navbar() {
         </div>
 
         {/* Mobile Menu Button */}
-        <button
-          onClick={() =>
-            setMobileOpen(!mobileOpen)
-          }
-          className="flex h-10 w-10 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-white/50 md:hidden"
-        >
-          {mobileOpen ? (
-            <X className="h-5 w-5" />
-          ) : (
-            <Menu className="h-5 w-5" />
-          )}
-        </button>
-      </div>
+        <div className="flex items-center gap-2 md:hidden">
+          {user && (
+            <div className="relative">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#0066FF] to-[#0052CC] text-sm font-semibold text-white">
+                {initials}
+              </div>
 
-      {/* Mobile Menu */}
-      {mobileOpen && (
-        <div className="mx-auto mt-3 w-[92%] max-w-6xl rounded-3xl border border-white/30 bg-white/70 p-4 shadow-2xl backdrop-blur-2xl md:hidden">
-          
-          <div className="flex flex-col gap-1">
-            
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() =>
-                  setMobileOpen(false)
-                }
-                className="rounded-2xl px-4 py-3 text-sm text-gray-700 transition-colors hover:bg-white/60"
-              >
-                {link.name}
-              </Link>
-            ))}
-
-            <div className="mt-3 border-t border-white/20 pt-3">
-              
-              {!user ? (
-                <div className="flex flex-col gap-2">
-                  
-                  <Link
-                    href="/login"
-                    onClick={() =>
-                      setMobileOpen(false)
-                    }
-                    className="rounded-2xl border border-white/30 bg-white/50 px-4 py-3 text-center text-sm font-medium text-gray-900"
-                  >
-                    Sign in
-                  </Link>
-
-                  <Link
-                    href="/register"
-                    onClick={() =>
-                      setMobileOpen(false)
-                    }
-                    className="rounded-2xl bg-[#0066FF] px-4 py-3 text-center text-sm font-semibold text-white"
-                  >
-                    Get started
-                  </Link>
-
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  
-                  <Link
-                    href={dashboardHref}
-                    onClick={() =>
-                      setMobileOpen(false)
-                    }
-                    className="rounded-2xl bg-[#0066FF] px-4 py-3 text-center text-sm font-semibold text-white"
-                  >
-                    Dashboard
-                  </Link>
-
-                  <button
-                    onClick={handleLogout}
-                    className="rounded-2xl border border-white/30 bg-white/50 px-4 py-3 text-sm font-medium text-gray-700"
-                  >
-                    Sign out
-                  </button>
-
-                </div>
-              )}
+              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
             </div>
-          </div>
+          )}
+
+          <button
+            onClick={() =>
+              setMobileOpen(!mobileOpen)
+            }
+            className="flex h-10 w-10 items-center justify-center rounded-full text-gray-700 transition-colors hover:bg-white/50"
+          >
+            {mobileOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
+          </button>
         </div>
-      )}
+      </div>
     </header>
   );
 }

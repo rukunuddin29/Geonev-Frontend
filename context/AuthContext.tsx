@@ -5,97 +5,79 @@ import {
   useContext,
   useEffect,
   useState,
+  ReactNode,
 } from "react";
+import api from "@/lib/api";
 
-import { users } from "@/lib/dummyuser";
+type Role = "ADMIN" | "OWNER" | "CUSTOMER";
 
-type User = {
-  id: number;
+interface User {
+  id: string;
   email: string;
+  phone: string;
+  role: Role;
+}
+
+interface RegisterInput {
+  name?: string;
+  email: string;
+  phone: string;
   password: string;
-  role: "user" | "host";
-  name: string;
-};
+  role: Role;
+}
 
-type AuthContextType = {
+interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => boolean;
-  logout: () => void;
-};
+  loading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (data: RegisterInput) => Promise<void>;
+  logout: () => Promise<void>;
+}
 
-const AuthContext = createContext<AuthContextType | null>(
-  null
-);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Restore login from localStorage
+  // Load the current user on mount (uses the cookie)
   useEffect(() => {
-    const storedUser = localStorage.getItem("ev-user");
-
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    (async () => {
+      try {
+        const res = await api.get("/auth/me");
+        setUser(res.data?.data ?? res.data?.user ?? null);
+      } catch {
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
-  // LOGIN FUNCTION
-  const login = (
-    email: string,
-    password: string
-  ) => {
-    const foundUser = users.find(
-      (u) =>
-        u.email === email &&
-        u.password === password
-    );
-
-    if (foundUser) {
-      setUser(foundUser);
-
-      localStorage.setItem(
-        "ev-user",
-        JSON.stringify(foundUser)
-      );
-
-      return true;
-    }
-
-    return false;
+  const login = async (email: string, password: string) => {
+    const res = await api.post("/auth/login", { email, password });
+    setUser(res.data?.data ?? res.data?.user ?? null);
   };
 
-  // LOGOUT FUNCTION
-  const logout = () => {
-    setUser(null);
+  const register = async (data: RegisterInput) => {
+    await api.post("/auth/register", data);
+    await login(data.email, data.password); // auto-login after signup
+  };
 
-    localStorage.removeItem("ev-user");
+  const logout = async () => {
+    await api.post("/auth/logout");
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        login,
-        logout,
-      }}
-    >
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error(
-      "useAuth must be used inside AuthProvider"
-    );
-  }
-
-  return context;
-};
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
+}
